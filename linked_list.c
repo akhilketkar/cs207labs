@@ -46,7 +46,7 @@ int get_index(Item* listptr, int value){
   Item* p;
   int index = 0;
 
-  for(p=listptr; p != NULL; p=p->rest){
+  for(p=listptr; p != NULL; p=p->rest,index++){
     if(p->value == value) {
       return index;
     }
@@ -64,12 +64,15 @@ Item* remove_item(Item* listptr, int value){
 
       // if the value was found at the first location
       if(first) {
-        return curr->rest;
+        prev = curr->rest;
+        free(curr);
+        return prev;
       }
 
       // not the first location
       else {
         prev->rest = curr->rest;
+        free(curr);
         return listptr;
       }
     }
@@ -100,5 +103,8 @@ int main(){
         printf("i %d Item %d\n", i, get(listptr, i));
     }
     printf("Index for 3 %d\n", get_index(listptr, 3));
+    printf("Index for 2 %d\n", get_index(listptr, 2));
+    printf("Index for 1 %d\n", get_index(listptr, 1));
+
     free_all(listptr);
 }

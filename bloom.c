@@ -1,6 +1,89 @@
 #include<math.h>
 #include "bloom.h"
 
+
+void printHash(int num,index_t hashValue,int func_num)
+{
+  printf("Hash%d of %d is %llu\n",func_num,num,hashValue);
+  return ;
+}
+
+void testHash()
+{
+  bloom_filter_t *B = bloom_init(100);
+  int arrTest[6] = {0,1,2,3,13,97};
+  int i;
+
+  for(i=0;i<6;i++)
+  {
+    printHash(arrTest[i],hash1(B,arrTest[i]),1);
+  }
+
+  for(i=0;i<6;i++)
+  {
+    printHash(arrTest[i],hash2(B,arrTest[i]),2);
+  }
+  bloom_destroy(B);
+}
+
+void testShift()
+{
+  uint64_t x = 1;
+  int i;
+
+  for(i = 0;i<65;i++)
+  {
+    printf("%llu\n", x);
+    x <<= 1;
+  }
+  return;
+}
+
+void testSmoke()
+{
+  int i,total=0;
+  //initialize the filter
+  bloom_filter_t *B = bloom_init(1000);
+
+  // add some numbers to the filter
+  for(i=0;i<70;i++)
+  {
+    bloom_add(B,i);
+  }
+
+  // check how many bits are set
+  for(i=0;i<B->size;i++)
+  {
+    total += get_bit(B,i);
+  }
+  printf("Smoke Test: bits set %d\n",total );
+
+  bloom_destroy(B);
+}
+
+void gen_rand(long *arr,int n,int max)
+{
+  int i;
+
+  for(i=0;i<n;i++)
+  {
+    arr[i] = rand() % max;
+  }
+
+}
+
+void testRand()
+{
+  int i = 0;
+  long arr[100] = {0};
+  gen_rand(arr,100,100000);
+
+  for(i=0;i<100;i++)
+  {
+    printf("%ld\n",arr[i]);
+  }
+}
+
 // Multiplication method 1
 index_t hash1(bloom_filter_t *B, key_t k)
 {
@@ -36,48 +119,14 @@ index_t hash3(bloom_filter_t *B, key_t k)
   return ((index_t) k*2654435761 % B->size);
 }
 
-void printHash(int num,index_t hashValue)
-{
-  printf("The hash of %d is %llu\n",num,hashValue);
-  return ;
-}
-
-void testHash()
-{
-  bloom_filter_t *B;
-  int arrTest[6] = {0,1,2,3,13,97};
-  int i;
-
-  B->size = 100;
-
-  for(i=0;i<6;i++)
-  {
-    printHash(arrTest[i],hash1(B,arrTest[i]));
-    printHash(arrTest[i],hash2(B,arrTest[i]));
-  }
-}
-
-void testShift()
-{
-  uint64_t x = 1;
-  int i;
-
-  for(i = 0;i<65;i++)
-  {
-    printf("%llu\n", x);
-    x <<= 1;
-  }
-  return;
-}
-
 void set_bit(bloom_filter_t *B, index_t i)
 {
   int j = i / 64, k = i % 64; // get the positions
   index_t word_k; // get the word in the table
-  word_k = 1 << k;
-
+  word_k = 1;
+  word_k = word_k << k;
   B->table[j] = B->table[j] | word_k;
-
+  // printf("Word: %llu\n",B->table[j]);
   return;
 }
 
@@ -85,9 +134,12 @@ int get_bit(bloom_filter_t *B, index_t i)
 {
   int j = i / 64, k = i % 64; // get the positions
   index_t word = B->table[j], word_k; // get the word in the table
-  word_k = 1 << k;
+  word_k = 1;
+  word_k = word_k << k;
 
-  return (int)((word & word_k) >> k);
+  //printf("Key: %llu,j: %d,k = %d\n",i,j,k);
+  //printf("Word: %llu,Word_k: %llu, AND:%llu\n",word,word_k,word & word_k);
+  return (int)((word & word_k) >>k);
 }
 
 bloom_filter_t* bloom_init(index_t size_in_bits)
@@ -125,6 +177,7 @@ int bloom_check(bloom_filter_t *B, key_t k)
     tr &= get_bit(B,hashVal);
   }
 
+  //printf("Tr = %d",tr);
   return tr;
 
 }
@@ -144,32 +197,69 @@ void bloom_add(bloom_filter_t *B, key_t k)
   // update the count
   B->count++;
   return;
-
 }
 
-int main(int argc, char const *argv[]) {
-
-  int i,total=0;
-  //testHash();
-  //testShift();
+void testFalsePosRate()
+{
+  int i,total=0,size=1000,N=100,max_rand = 1000000;
 
   //initialize the filter
-  bloom_filter_t *B = bloom_init(1000);
+  bloom_filter_t *B = bloom_init(size);
+
+  // get random elements
+  long arr1[N], arr2[N];
+
+  gen_rand(arr1,N,max_rand);
+  gen_rand(arr2,N,max_rand);
 
   // add some numbers to the filter
-  for(i=0;i<70;i++)
+  for(i=0;i<N;i++)
   {
-    bloom_add(B,i);
+    bloom_add(B,arr1[i]);
   }
 
   // check how many bits are set
+
   for(i=0;i<B->size;i++)
   {
     total += get_bit(B,i);
   }
-  printf("Total number of bits set %d\n",total );
+  printf("Total number of bits set %d\n",total);
+
+  // check how many other random numbers are in the set
+  total = 0;
+  for(i=0;i<N;i++)
+  {
+    if(bloom_check(B,arr1[i]))
+    {
+      total += 1;
+    }
+  }
+  if(total != N)
+  {
+    printf("Check FAILED !!:: %d\n",total);
+  }
+
+
+
+  // check how many other random numbers are in the set
+  total = 0;
+  for(i=0;i<N;i++)
+  {
+    if(bloom_check(B,arr2[i]))
+    {
+      total += 1;
+    }
+  }
+  printf("Total random numbers present %d\n",total);
 
   bloom_destroy(B);
+}
 
+int main(int argc, char const *argv[]) {
+  //testHash();
+  //testSmoke();
+  //testRand();
+  testFalsePosRate();
   return 0;
 }
